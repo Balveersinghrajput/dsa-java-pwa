@@ -1,5 +1,7 @@
 "use client";
 
+import { notify } from "@/lib/notify";
+
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bell, CalendarClock, Database, Download, Monitor, Moon, Smartphone, Sun, Trash2, Upload, User, WifiOff } from "lucide-react";
 import { plan } from "@/data/curriculum";
@@ -202,6 +204,11 @@ export default function SettingsPage() {
       setMsg("That file isn't a valid DSA in Java backup.");
     }
   };
+  const sendTest = async () => {
+    const day = d.focus;
+    const ok = await notify("Time to study DSA", `Tap to open Day ${day}: ${plan[day - 1]?.topic.title ?? ""}`, `/lessons/${day}`, "test");
+    setMsg(ok ? "Test notification sent. Tap it: it should open today's lesson." : "Notifications aren't allowed yet.");
+  };
   const askPermission = async () => {
     if (typeof Notification === "undefined") return setMsg("This browser doesn't support notifications.");
     const p = await Notification.requestPermission();
@@ -270,7 +277,10 @@ export default function SettingsPage() {
               {perm !== "granted" ? (
                 <Button onClick={askPermission}>Allow notifications</Button>
               ) : (
-                <Button variant={state.reminder.enabled ? "primary" : "outline"} onClick={() => update((s) => ({ ...s, reminder: { ...s.reminder, enabled: !s.reminder.enabled } }))}>{state.reminder.enabled ? "On" : "Off"}</Button>
+                <>
+                  <Button variant={state.reminder.enabled ? "primary" : "outline"} onClick={() => update((s) => ({ ...s, reminder: { ...s.reminder, enabled: !s.reminder.enabled } }))}>{state.reminder.enabled ? "On" : "Off"}</Button>
+                  <Button variant="ghost" onClick={sendTest}>Test</Button>
+                </>
               )}
             </div>
           </Row>

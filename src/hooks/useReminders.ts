@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { plan } from "@/data/curriculum";
+import { notify } from "@/lib/notify";
 
 /**
  * Daily study reminder. Browsers only let a web app schedule this while the
@@ -26,16 +27,25 @@ export function useReminders() {
       const key = `dsa-reminded-${todayISO}`;
       if (now.getHours() * 60 + now.getMinutes() >= h * 60 + m && !localStorage.getItem(key)) {
         localStorage.setItem(key, "1");
-        const body = `Day ${focus}: ${plan[focus - 1].topic.title}`;
-        if (navigator.serviceWorker?.controller) {
-          navigator.serviceWorker.ready
-            .then((reg) => reg.showNotification("Time to study DSA", { body, icon: "/icons/icon-192.png", tag: "daily" }))
-            .catch(() => new Notification("Time to study DSA", { body }));
-        } else new Notification("Time to study DSA", { body });
+        void notify("Time to study DSA", `Day ${focus}: ${plan[focus - 1].topic.title}`, `/lessons/${focus}`);
       }
     };
     tick();
     const id = setInterval(tick, 30_000);
     return () => clearInterval(id);
   }, [enabled, time, pending, focus, todayISO]);
+}
+
+/** Lets the service worker ask an open page to go somewhere (after a notification tap). */
+export function useNotificationClicks() {
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const on = (e: MessageEvent) => {
+      const url = e.data?.type === "OPEN_URL" ? String(e.data.url) : "";
+      if (url.startsWith("/") && !url.startsWith("//")) location.assign(url);
+    };
+    sw.addEventListener("message", on);
+    return () => sw.removeEventListener("message", on);
+  }, []);
 }

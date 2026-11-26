@@ -1,6 +1,6 @@
 // Offline-first service worker for DSA in Java.
 // Bump VERSION on each deploy so clients pick up the new build.
-const VERSION = "v3";
+const VERSION = "v4";
 const PAGES = `dsa-pages-${VERSION}`;
 const STATIC = `dsa-static-${VERSION}`;
 const MEDIA = `dsa-media-${VERSION}`;
@@ -103,4 +103,31 @@ self.addEventListener("fetch", (event) => {
       }),
     );
   }
+});
+
+// Tapping a notification: focus an open app window and go to the page, or open one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "/", self.location.origin);
+  if (target.origin !== self.location.origin) return; // only ever open our own pages
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const w of wins) {
+        if (new URL(w.url).origin !== self.location.origin) continue;
+        await w.focus();
+        if ("navigate" in w) {
+          try {
+            await w.navigate(target.href);
+            return;
+          } catch {
+            /* not controlled by this worker: ask the page instead */
+          }
+        }
+        w.postMessage({ type: "OPEN_URL", url: target.pathname + target.search + target.hash });
+        return;
+      }
+      await self.clients.openWindow(target.href);
+    })(),
+  );
 });
