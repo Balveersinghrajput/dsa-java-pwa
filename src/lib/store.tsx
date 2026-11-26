@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { idbGet, idbSet } from "./db";
 import { defaultRestDays, leaveBalance, toISODate } from "./schedule";
-import type { AppState, Attempt, CustomResource, MockInterview, QuizResult, Schedule, TaskId } from "@/types";
+import type { AppState, Attempt, CustomResource, SavedProblem, MockInterview, QuizResult, Schedule, TaskId } from "@/types";
 import { derive, type Derived } from "./derive";
 import { applyPlanConfig, planKeysFor, type PlanConfig } from "@/data/curriculum";
 import { remapDays } from "./planRemap";
@@ -47,6 +47,7 @@ export const freshState = (): AppState => ({
   targetDate: null,
   planKeys: [],
   customResources: {},
+  savedProblems: [],
 });
 
 const cfgOf = (s: AppState): PlanConfig => ({ customPhases: s.customPhases, customTopics: s.customTopics, extraConcepts: s.extraConcepts, splits: s.splits });
@@ -75,6 +76,7 @@ export function normalise(raw: unknown): AppState {
     schedule: { ...base.schedule, ...(r.schedule ?? {}) },
     reminder: { ...base.reminder, ...(r.reminder ?? {}) },
     timer: { ...base.timer, ...(r.timer ?? {}) },
+    savedProblems: Array.isArray(r.savedProblems) ? r.savedProblems : [],
     customResources: r.customResources && typeof r.customResources === "object" && !Array.isArray(r.customResources) ? r.customResources : {},
     restDays: Array.isArray(r.restDays) ? r.restDays : defaultRestDays((r.perWeek ?? base.perWeek) as AppState["perWeek"]),
     notes,
@@ -264,6 +266,23 @@ function useStoreValue() {
           else delete notes[key];
           return { ...s, notes };
         }),
+
+      /* ---------- Saved problems (Practice Arena library) ---------- */
+      /** Creates or updates a saved problem; returns its id. */
+      saveProblem: (p: Omit<SavedProblem, "id" | "created" | "updated" | "favorite"> & { id?: string; favorite?: boolean }) => {
+        const id = p.id ?? `sp${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        const now = new Date().toISOString();
+        update((s) => {
+          const cur = s.savedProblems.find((x) => x.id === id);
+          const item: SavedProblem = { favorite: false, ...cur, ...p, id, code: p.code.slice(0, 30_000), created: cur?.created ?? now, updated: now };
+          const rest = s.savedProblems.filter((x) => x.id !== id);
+          return { ...s, savedProblems: [item, ...rest].slice(0, 300) };
+        });
+        return id;
+      },
+      deleteProblem: (id: string) => update((s) => ({ ...s, savedProblems: s.savedProblems.filter((x) => x.id !== id) })),
+      toggleFavoriteProblem: (id: string) =>
+        update((s) => ({ ...s, savedProblems: s.savedProblems.map((x) => (x.id === id ? { ...x, favorite: !x.favorite } : x)) })),
 
       /* ---------- learner-added resources (per plan day) ---------- */
       addResource: (dayKey: string, r: Omit<CustomResource, "id" | "added">) =>

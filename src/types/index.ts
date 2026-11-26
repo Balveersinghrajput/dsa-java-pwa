@@ -49,6 +49,26 @@ export interface CustomResource {
   added: string; // ISO time
 }
 
+/** A coding problem the learner saved from the Practice Arena (or pasted in). */
+export interface SavedProblem {
+  id: string;
+  title: string;
+  category: string; // problem type / pattern, e.g. "Two Pointers"
+  difficulty: "Easy" | "Medium" | "Hard";
+  status: "solved" | "attempted" | "revisit";
+  tags: string[];
+  notes: string; // what the problem is about, approach, gotchas
+  link?: string; // LeetCode / source URL
+  time?: string; // time complexity, e.g. "O(n)"
+  space?: string;
+  code: string;
+  stdin?: string;
+  exerciseId?: string; // when saved from a built-in exercise
+  favorite: boolean;
+  created: string;
+  updated: string;
+}
+
 export interface AppState {
   version: 2;
   name: string;
@@ -87,5 +107,7 @@ export interface AppState {
   planKeys: string[];
   /** Videos/articles the learner added, by stable plan-day key ("topicId#part"). */
   customResources: Record<string, CustomResource[]>;
+  /** Problems saved from the Practice Arena (the Saved page). */
+  savedProblems: SavedProblem[];
 }
 

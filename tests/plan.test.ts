@@ -3,6 +3,7 @@ import { applyPlanConfig, plan, planKeysFor } from "@/data/curriculum";
 import { remapDays } from "@/lib/planRemap";
 import { freshState, normalise } from "@/lib/store";
 import { derive } from "@/lib/derive";
+import { toISODate } from "@/lib/schedule";
 
 describe("plan & progress remapping", () => {
   it("has 152 days with unique stable keys", () => {
@@ -50,10 +51,11 @@ describe("plan & progress remapping", () => {
 
 describe("derive", () => {
   applyPlanConfig({});
+  // Local dates (the app works in the learner's local time; toISOString would use UTC).
   const daysAgo = (n: number) => {
     const d = new Date();
     d.setDate(d.getDate() - n);
-    return d.toISOString().slice(0, 10);
+    return toISODate(d);
   };
 
   it("locks future days after more than 2 missed days", () => {
@@ -67,5 +69,18 @@ describe("derive", () => {
   it("does not lock with 2 or fewer missed days", () => {
     const s = { ...freshState(), startDate: daysAgo(2), restDays: [] };
     expect(derive(s).catchUp).toBe(false);
+  });
+});
+
+import { guessCategory } from "@/data/categories";
+
+describe("saved problem categories", () => {
+  it("guesses the problem type from the title first, then the code", () => {
+    expect(guessCategory("Two Sum", "Map<Integer,Integer> m = new HashMap<>();")).toBe("Hashing");
+    expect(guessCategory("Longest Substring Without Repeating", "")).toBe("Sliding Window");
+    expect(guessCategory("Climbing stairs", "int[] dp = new int[n+1];")).toBe("Dynamic Programming");
+    expect(guessCategory("Number of Islands", "")).toBe("Graphs");
+    expect(guessCategory("Reverse list", "ListNode prev = null;")).toBe("Linked List");
+    expect(guessCategory("Hello", "System.out.println(1);")).toBe("Basics");
   });
 });

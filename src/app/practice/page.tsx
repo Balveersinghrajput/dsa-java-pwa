@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, Check, CheckCircle2, Copy, Eye, Loader2, Minus, Play, Plus, RotateCcw, Save, Send, Smartphone, XCircle } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, Copy, Eye, FileCode2, Loader2, Minus, Pencil, Play, Plus, RotateCcw, Save, Send, Smartphone, X, XCircle } from "lucide-react";
+import ProblemForm, { type ProblemDraft } from "@/components/saved/ProblemForm";
 import { exercises, playgroundStarter, type Exercise } from "@/data/practice";
 import { plan } from "@/data/curriculum";
 import { useAppState } from "@/lib/store";
@@ -28,7 +29,7 @@ const norm = (s: string) => s.replace(/\r/g, "").trim().split("\n").map((l) => l
 
 function Arena() {
   const params = useSearchParams();
-  const { state, saveSolution } = useAppState();
+  const { state, saveSolution, saveProblem } = useAppState();
   const [exId, setExId] = useState<string>(params.get("ex") ?? "playground");
   const ex: Exercise | undefined = exercises.find((e) => e.id === exId);
   const solKey = ex ? ex.id : "playground";
@@ -44,6 +45,11 @@ function Arena() {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  // The Saved problem being edited (opened from the Saved page, or saved once already).
+  const [editingId, setEditingId] = useState<string | null>(params.get("saved"));
+  const editing = state.savedProblems.find((p) => p.id === editingId) ?? null;
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Load code: from a lesson ("Run in Practice Arena"), a saved solution or the starter.
   const loaded = useRef(false);
@@ -54,6 +60,12 @@ function Arena() {
     setPanel("input");
     if (!loaded.current) {
       loaded.current = true;
+      const sp = editingId ? state.savedProblems.find((p) => p.id === editingId) : null;
+      if (sp) {
+        setCode(sp.code);
+        setStdin(sp.stdin ?? "");
+        return;
+      }
       const c = params.get("load") === "1" ? sessionStorage.getItem("dsa-practice-load") : null;
       if (c) {
         sessionStorage.removeItem("dsa-practice-load");
@@ -117,10 +129,25 @@ function Arena() {
     }
   };
 
+  const flash = (msg: string) => {
+    setSaved(true);
+    setToast(msg);
+    setTimeout(() => setSaved(false), 1500);
+    setTimeout(() => setToast(null), 3500);
+  };
+  /** Save: updates the problem being edited, otherwise asks for its details first. */
   const save = () => {
     saveSolution(solKey, code);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    if (editing) {
+      saveProblem({ ...editing, code, stdin });
+      flash(`Saved changes to "${editing.title}"`);
+    } else setSaveOpen(true);
+  };
+  const saveDetails = (d: ProblemDraft) => {
+    const id = saveProblem({ ...d, stdin });
+    setEditingId(id);
+    setSaveOpen(false);
+    flash(`Saved "${d.title}" to your Saved problems`);
   };
   const copy = async () => {
     try {
@@ -145,6 +172,16 @@ function Arena() {
           <Select<string> label="Choose exercise" className="w-full sm:w-72" value={exId} onChange={setExId} options={[{ value: "playground", label: "Free playground" }, ...exercises.map((e) => ({ value: e.id, label: `${e.difficulty} · ${e.title}` }))]} />
         }
       />
+
+      {editing && (
+        <div className="fade mb-4 flex flex-wrap items-center gap-2 rounded-2xl bg-primary-soft px-4 py-2.5 text-[13px]">
+          <FileCode2 className="h-4 w-4 text-primary" />
+          <span className="min-w-0 flex-1 truncate">Editing saved problem <b>{editing.title}</b>. Save updates it.</span>
+          <button onClick={() => setSaveOpen(true)} className="press inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary hover:bg-surface"><Pencil className="h-3.5 w-3.5" /> Details</button>
+          <Link href="/saved" className="rounded-lg px-2 py-1 font-semibold text-primary hover:bg-surface">All saved</Link>
+          <button onClick={() => setEditingId(null)} aria-label="Stop editing (next save creates a new problem)" title="Stop editing" className="press grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface hover:text-ink"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         {/* problem panel */}
@@ -208,7 +245,7 @@ function Arena() {
               <JavaEditor value={code} onChange={setCode} simple={simple} fontSize={font} />
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t border-line p-3">
-              <span className="text-[12px] text-muted">{state.solutions[solKey] ? "Saved solution loaded" : "Not saved yet"}</span>
+              <span className="text-[12px] text-muted">{editing ? `Saved problem · ${editing.category}` : state.solutions[solKey] ? "Saved solution loaded" : "Not saved yet"}</span>
               <div className="ml-auto flex gap-2">
                 <Button variant="outline" onClick={run} disabled={!!busy}>
                   {busy === "run" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />} Run
@@ -289,6 +326,26 @@ function Arena() {
           <p className="text-[12px] text-muted">Code runs on a sandboxed Judge0 server (JDK 17). Running needs an internet connection; your code and solutions are saved on this device and work offline.</p>
         </div>
       </div>
+
+      <Modal open={saveOpen} onClose={() => setSaveOpen(false)} title={editing ? "Edit problem details" : "Save problem"} wide>
+        {saveOpen && (
+          <ProblemForm
+            initial={editing ?? { title: ex?.title ?? "", difficulty: ex?.difficulty ?? "Easy", exerciseId: ex?.id, notes: ex?.statement ?? "", status: tests && passed === tests.length ? "solved" : "attempted", tags: [] }}
+            code={code}
+            onSave={saveDetails}
+            onCancel={() => setSaveOpen(false)}
+            submitLabel={editing ? "Save changes" : "Save problem"}
+          />
+        )}
+      </Modal>
+
+      {toast && (
+        <div role="status" className="scale-in fixed inset-x-4 bottom-24 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-navy px-4 py-3 text-[13.5px] text-white shadow-pop lg:bottom-8">
+          <CheckCircle2 className="h-5 w-5 flex-none text-green" />
+          <span className="min-w-0 flex-1">{toast}</span>
+          <Link href="/saved" className="font-semibold text-[#a5b4fc] hover:underline">View</Link>
+        </div>
+      )}
 
       {ex && (
         <Modal open={showSolution} onClose={() => setShowSolution(false)} title={`Reference solution · ${ex.title}`} wide>
