@@ -60,7 +60,7 @@ function Signup() {
           {error && <Alert tone="error">{error}</Alert>}
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-2">Your name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus required maxLength={40} placeholder="e.g. Rahul" className={field} />
+            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus required maxLength={40} placeholder="e.g. Balveer" className={field} />
           </label>
           <label className="block">
             <span className="text-[13px] font-semibold text-ink-2">Email</span>

@@ -195,7 +195,7 @@ function NewInvite({ onCreated }: { onCreated: () => void }) {
       <form onSubmit={create} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_140px_auto] sm:items-end">
         <label className="block">
           <span className="text-[13px] font-semibold text-ink-2">Who is it for? (optional)</span>
-          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="e.g. Rahul from college" className={field} />
+          <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={60} placeholder="e.g. Balveer from college" className={field} />
         </label>
         <label className="block">
           <span className="text-[13px] font-semibold text-ink-2">Valid for</span>
