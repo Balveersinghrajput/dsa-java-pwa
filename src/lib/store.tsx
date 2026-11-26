@@ -48,6 +48,7 @@ export const freshState = (): AppState => ({
   planKeys: [],
   customResources: {},
   savedProblems: [],
+  videoTime: {},
 });
 
 const cfgOf = (s: AppState): PlanConfig => ({ customPhases: s.customPhases, customTopics: s.customTopics, extraConcepts: s.extraConcepts, splits: s.splits });
@@ -76,6 +77,7 @@ export function normalise(raw: unknown): AppState {
     schedule: { ...base.schedule, ...(r.schedule ?? {}) },
     reminder: { ...base.reminder, ...(r.reminder ?? {}) },
     timer: { ...base.timer, ...(r.timer ?? {}) },
+    videoTime: r.videoTime && typeof r.videoTime === "object" && !Array.isArray(r.videoTime) ? r.videoTime : {},
     savedProblems: Array.isArray(r.savedProblems) ? r.savedProblems : [],
     customResources: r.customResources && typeof r.customResources === "object" && !Array.isArray(r.customResources) ? r.customResources : {},
     restDays: Array.isArray(r.restDays) ? r.restDays : defaultRestDays((r.perWeek ?? base.perWeek) as AppState["perWeek"]),
@@ -303,8 +305,27 @@ function useStoreValue() {
 
       toggleBookmark: (key: string) => update((s) => ({ ...s, bookmarks: toggle(s.bookmarks, key) })),
 
-      setVideoProgress: (id: string, p: number) =>
-        update((s) => (Math.abs((s.videoProgress[id] ?? 0) - p) < 0.01 ? s : { ...s, videoProgress: { ...s.videoProgress, [id]: Math.max(s.videoProgress[id] ?? 0, p) } })),
+      /** Watch progress (0..1, only grows) and the exact position to resume from (seconds). */
+      setVideoProgress: (id: string, p: number, seconds?: number) =>
+        update((s) => {
+          const pos = seconds === undefined ? undefined : Math.max(0, Math.floor(seconds));
+          const progChanged = Math.abs((s.videoProgress[id] ?? 0) - p) >= 0.01 && p > (s.videoProgress[id] ?? 0);
+          const posChanged = pos !== undefined && Math.abs((s.videoTime[id] ?? 0) - pos) >= 3;
+          if (!progChanged && !posChanged) return s;
+          return {
+            ...s,
+            videoProgress: progChanged ? { ...s.videoProgress, [id]: p } : s.videoProgress,
+            videoTime: posChanged ? { ...s.videoTime, [id]: pos! } : s.videoTime,
+          };
+        }),
+      /** Forget the resume position (finished, or "Start over"). */
+      clearVideoTime: (id: string) =>
+        update((s) => {
+          if (!(id in s.videoTime)) return s;
+          const videoTime = { ...s.videoTime };
+          delete videoTime[id];
+          return { ...s, videoTime };
+        }),
       toggleVideoDone: (id: string) => update((s) => ({ ...s, videosDone: toggle(s.videosDone, id) })),
       toggleArticleDone: (id: string) => update((s) => ({ ...s, articlesDone: toggle(s.articlesDone, id) })),
 

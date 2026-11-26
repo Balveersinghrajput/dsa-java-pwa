@@ -8,7 +8,7 @@ import { thumb } from "@/data/videos";
 import { api } from "@/lib/api";
 import { Bar, Button, Modal, cardCls, st } from "@/components/ui";
 import { field } from "@/components/auth/ui";
-import YouTubeEmbed from "@/components/resources/YouTubeEmbed";
+import ResumablePlayer from "@/components/resources/ResumablePlayer";
 import type { CustomResource } from "@/types";
 
 /**
@@ -16,7 +16,7 @@ import type { CustomResource } from "@/types";
  * YouTube links are detected (thumbnail + title) and play here with YouTube's own controls.
  */
 export default function MyResources({ dayKey }: { dayKey: string }) {
-  const { state, addResource, removeResource, setVideoProgress, toggleVideoDone } = useAppState();
+  const { state, addResource, removeResource, toggleVideoDone } = useAppState();
   const list = state.customResources[dayKey] ?? [];
   const videos = list.filter((r) => r.kind === "video");
   const articles = list.filter((r) => r.kind === "article");
@@ -98,9 +98,7 @@ export default function MyResources({ dayKey }: { dayKey: string }) {
       <Modal open={!!playing} onClose={() => setPlaying(null)} title={playing?.title ?? "Video"} wide>
         {playing?.videoId && (
           <>
-            <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
-              <YouTubeEmbed id={playing.videoId} title={playing.title} onProgress={(p) => setVideoProgress(playing.videoId!, p)} onEnd={onEnd} />
-            </div>
+            <ResumablePlayer key={playing.videoId} id={playing.videoId} title={playing.title} className="rounded-xl" onFinished={onEnd} />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <a href={playing.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[13px] font-semibold text-primary hover:underline">
                 Open on YouTube <ExternalLink className="h-3.5 w-3.5" />

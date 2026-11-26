@@ -8,10 +8,10 @@ import { fmtShort } from "@/lib/schedule";
 import { phaseLevel, useDerived } from "@/lib/derive";
 import { useAppState } from "@/lib/store";
 import { Badge, Bar, Button, Card, CardHeader, cardCls } from "@/components/ui";
-import YouTubeEmbed from "./YouTubeEmbed";
+import ResumablePlayer from "./ResumablePlayer";
 
 export default function VideoView({ id }: { id: string }) {
-  const { state, setVideoProgress, toggleVideoDone, toggleBookmark, setNote } = useAppState();
+  const { state, toggleVideoDone, toggleBookmark, setNote } = useAppState();
   const d = useDerived();
   const idx = videos.findIndex((v) => v.id === id);
   const v = videos[idx];
@@ -33,8 +33,8 @@ export default function VideoView({ id }: { id: string }) {
       <Link href="/resources?tab=videos" className="rise inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-ink"><ArrowLeft className="h-4 w-4" /> Video library</Link>
       <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-5">
-          <div className={`relative aspect-video overflow-hidden bg-black ${cardCls}`}>
-            <YouTubeEmbed id={v.id} title={v.title} onProgress={(p) => setVideoProgress(v.id, p)} onEnd={() => !done && toggleVideoDone(v.id)} />
+          <div>
+            <ResumablePlayer key={v.id} id={v.id} title={v.title} className={cardCls} onFinished={() => !done && toggleVideoDone(v.id)} />
           </div>
 
           <Card i={1} className="min-w-0 p-4 sm:p-5">

@@ -83,6 +83,8 @@ export interface AppState {
   notes: Record<string, Note>; // "problem:slug" | "lesson:12" | "video:id" | "article:id" | "free:id"
   bookmarks: string[]; // "lesson:12" | "problem:slug" | "video:id" | "article:id" | "template:id"
   videoProgress: Record<string, number>; // 0..1
+  /** Where each video was left off, in seconds (to resume on any device). */
+  videoTime: Record<string, number>;
   videosDone: string[];
   articlesDone: string[];
   solutions: Record<string, string>; // practice exercise id → Java source

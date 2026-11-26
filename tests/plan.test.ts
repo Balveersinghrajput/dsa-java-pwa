@@ -84,3 +84,24 @@ describe("saved problem categories", () => {
     expect(guessCategory("Hello", "System.out.println(1);")).toBe("Basics");
   });
 });
+
+import { resumeAt, clock } from "@/lib/resume";
+
+describe("video resume", () => {
+  const s = (over: object) => ({ ...freshState(), ...over });
+  it("continues a few seconds before where you stopped", () => {
+    expect(resumeAt(s({ videoTime: { a: 754 }, videoProgress: { a: 0.4 } }), "a")).toBe(751);
+    expect(clock(754)).toBe("12:34");
+    expect(clock(3725)).toBe("1:02:05");
+  });
+  it("starts from the beginning when finished, nearly finished or barely started", () => {
+    expect(resumeAt(s({ videoTime: { a: 754 }, videosDone: ["a"] }), "a")).toBe(0);
+    expect(resumeAt(s({ videoTime: { a: 754 }, videoProgress: { a: 0.99 } }), "a")).toBe(0);
+    expect(resumeAt(s({ videoTime: { a: 8 } }), "a")).toBe(0);
+    expect(resumeAt(s({}), "a")).toBe(0);
+  });
+  it("keeps the position through normalise (sync / re-login)", () => {
+    expect(normalise({ videoTime: { a: 120 } }).videoTime).toEqual({ a: 120 });
+    expect(normalise({}).videoTime).toEqual({});
+  });
+});
