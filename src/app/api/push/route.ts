@@ -48,6 +48,18 @@ async function handleDELETE(req: Request) {
   return json({ ok: true });
 }
 
+/** The app showed today's reminder itself (it was open): don't push it again ({ sent: "YYYY-MM-DD" }). */
+async function handlePATCH(req: Request) {
+  if (!sameOrigin(req)) return json({ error: "Bad origin." }, 403);
+  const u = await getUser();
+  if (!u) return json({ error: "Please sign in." }, 401);
+  const sent = String((await body<{ sent: string }>(req))?.sent ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sent)) return json({ error: "Invalid date." }, 400);
+  await updatePush((users) => (users[u.uid] ? { ...users, [u.uid]: { ...users[u.uid], lastSent: sent } } : users));
+  return json({ ok: true });
+}
+
 export const GET = guard(handleGET);
+export const PATCH = guard(handlePATCH);
 export const POST = guard(handlePOST);
 export const DELETE = guard(handleDELETE);

@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { plan } from "@/data/curriculum";
 import { notify } from "@/lib/notify";
 import { pushActive, registerPush } from "@/lib/push";
+import { api } from "@/lib/api";
 
 /**
  * Daily study reminder. Browsers only let a web app schedule this while the
@@ -22,13 +23,15 @@ export function useReminders() {
   useEffect(() => {
     if (!enabled || !pending || typeof Notification === "undefined") return;
     const tick = () => {
-      if (Notification.permission !== "granted" || pushActive()) return; // the server sends it instead
+      if (Notification.permission !== "granted") return;
       const now = new Date();
       const [h, m] = time.split(":").map(Number);
       const key = `dsa-reminded-${todayISO}`;
       if (now.getHours() * 60 + now.getMinutes() >= h * 60 + m && !localStorage.getItem(key)) {
         localStorage.setItem(key, "1");
-        void notify("Time to study DSA", `Day ${focus}: ${plan[focus - 1].topic.title}`, `/lessons/${focus}`);
+        void notify("Time to study DSA 📚", `Day ${focus} is waiting: ${plan[focus - 1].topic.title}`, `/lessons/${focus}`);
+        // Tell the server so it doesn't send the same reminder again by push.
+        if (pushActive()) void api("/api/push", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sent: todayISO }) }).catch(() => {});
       }
     };
     tick();
