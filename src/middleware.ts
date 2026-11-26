@@ -10,7 +10,7 @@ export const config = {
 };
 
 const PUBLIC_PAGES = ["/login", "/forgot", "/reset"];
-const PUBLIC_API = ["/api/auth/login", "/api/auth/refresh", "/api/auth/forgot", "/api/auth/reset", "/api/auth/logout", "/api/health"];
+const PUBLIC_API = ["/api/auth/login", "/api/auth/refresh", "/api/auth/forgot", "/api/auth/reset", "/api/auth/logout", "/api/health", "/api/cron/keepalive"];
 
 const tooMany = (retry: number, api: boolean) =>
   api
