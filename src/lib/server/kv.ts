@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ConfigError } from "./crypto";
 
 /**
  * Tiny key-value store used for the account, sessions, rate limits and synced progress.
@@ -14,7 +15,7 @@ const PREFIX = process.env.KV_PREFIX || "dsa:";
 
 export const usingRedis = () => Boolean(REDIS_URL && REDIS_TOKEN);
 
-export class StorageNotConfigured extends Error {
+export class StorageNotConfigured extends ConfigError {
   constructor() {
     super(
       "Server storage isn't configured. On Vercel add an Upstash Redis database (Storage → Marketplace → Upstash) so UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set, then redeploy.",
@@ -32,25 +33,33 @@ function assertStorage() {
 
 type Cmd = (string | number)[];
 
+const redisFail = (detail: string) =>
+  new ConfigError(`Can't use Upstash Redis (${detail}). Check KV_REST_API_URL / KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN) in Vercel, then redeploy.`);
+
+async function post(url: string, body: unknown) {
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REDIS_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch (e) {
+    throw redisFail(`network error: ${(e as Error).message}`);
+  }
+}
+
 async function redis<T = unknown>(cmd: Cmd): Promise<T> {
-  const res = await fetch(REDIS_URL, {
-    method: "POST",
-    headers: { authorization: `Bearer ${REDIS_TOKEN}`, "content-type": "application/json" },
-    body: JSON.stringify(cmd),
-    cache: "no-store",
-  });
+  const res = await post(REDIS_URL, cmd);
+  if (res.status === 401 || res.status === 403) throw redisFail("token rejected");
   const data = (await res.json().catch(() => ({}))) as { result?: T; error?: string };
   if (!res.ok || data.error) throw new Error(`Redis ${cmd[0]} failed: ${data.error ?? res.status}`);
   return data.result as T;
 }
 
 async function pipeline(cmds: Cmd[]): Promise<unknown[]> {
-  const res = await fetch(`${REDIS_URL}/pipeline`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${REDIS_TOKEN}`, "content-type": "application/json" },
-    body: JSON.stringify(cmds),
-    cache: "no-store",
-  });
+  const res = await post(`${REDIS_URL}/pipeline`, cmds);
+  if (res.status === 401 || res.status === 403) throw redisFail("token rejected");
   const data = (await res.json().catch(() => [])) as { result?: unknown; error?: string }[];
   if (!res.ok || !Array.isArray(data)) throw new Error(`Redis pipeline failed: ${res.status}`);
   const bad = data.find((d) => d.error);
@@ -142,4 +151,15 @@ export async function kvHit(key: string, windowMs: number, cost: number): Promis
 
 export async function kvDel(key: string) {
   if (usingRedis()) await redis(["DEL", `${PREFIX}rl:${key}`]);
+}
+
+/** Round-trip check used by /api/health. */
+export async function kvPing(): Promise<"ok" | string> {
+  try {
+    assertStorage();
+    if (usingRedis()) await redis(["PING"]);
+    return "ok";
+  } catch (e) {
+    return (e as Error).message;
+  }
 }

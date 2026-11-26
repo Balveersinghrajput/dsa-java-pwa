@@ -47,7 +47,13 @@ function issueAccess(sid: string, v: number) {
 
 /** Valid access token → claims. Checks signature, expiry, account, password version and that the session still exists. */
 export async function verifyAccess(token: string | undefined): Promise<AccessClaims | null> {
-  const c = unsign<AccessClaims>(token);
+  let c: AccessClaims | null;
+  try {
+    c = unsign<AccessClaims>(token);
+  } catch (e) {
+    console.error("[auth]", (e as Error).message);
+    return null;
+  }
   if (!c || c.typ !== "access" || c.exp < Date.now() || c.sub !== accountEmail()) return null;
   const acct = await readAccount().catch((e) => {
     console.error("[auth] session store unavailable:", (e as Error).message);

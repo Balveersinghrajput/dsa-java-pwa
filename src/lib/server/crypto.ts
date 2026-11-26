@@ -31,7 +31,7 @@ export function safeEqual(a: string, b: string) {
 
 function secret() {
   const s = process.env.SESSION_SECRET;
-  if (!s || s.length < 32) throw new Error("SESSION_SECRET is missing or too short (set it in .env.local)");
+  if (!s || s.length < 32) throw new ConfigError("SESSION_SECRET is missing or shorter than 32 characters. Add it in .env.local (or Vercel → Settings → Environment Variables) and redeploy.");
   return s;
 }
 
@@ -54,3 +54,6 @@ export function unsign<T>(token: string | undefined): T | null {
     return null;
   }
 }
+
+/** A server setting is missing or wrong: shown to the user so it can be fixed. */
+export class ConfigError extends Error {}

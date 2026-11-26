@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { StorageNotConfigured } from "./kv";
+import { ConfigError } from "./crypto";
 
 export const json = (data: unknown, status = 200, headers?: Record<string, string>) =>
   NextResponse.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
@@ -34,9 +34,9 @@ export function guard<A extends any[]>(fn: (...args: A) => Promise<Response>) {
     try {
       return await fn(...args);
     } catch (e) {
-      if (e instanceof StorageNotConfigured) {
-        console.error("[storage]", e.message);
-        return json({ error: e.message, code: "storage" }, 503);
+      if (e instanceof ConfigError) {
+        console.error("[config]", e.message);
+        return json({ error: e.message, code: "config" }, 503);
       }
       console.error("[api]", e);
       return json({ error: "Something went wrong on the server. Please try again." }, 500);

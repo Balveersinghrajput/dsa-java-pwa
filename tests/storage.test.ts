@@ -104,7 +104,7 @@ describe("serverless without Redis (the Vercel ENOENT bug)", () => {
       return new Response("unreachable");
     })();
     expect(res.status).toBe(503);
-    expect((await res.json()).code).toBe("storage");
+    expect((await res.json()).code).toBe("config");
   });
 
   it("verifyAccess fails closed when storage is unavailable", async () => {
