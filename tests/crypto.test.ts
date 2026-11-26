@@ -52,3 +52,37 @@ describe("in-memory rate limiter", () => {
     expect(clientIp(req)).toBe("2.2.2.2");
   });
 });
+
+import { cleanUrl, youTubeId } from "@/lib/links";
+
+describe("learner links", () => {
+  it("finds the YouTube id in every common link shape", () => {
+    const id = "dQw4w9WgXcQ";
+    for (const u of [
+      `https://www.youtube.com/watch?v=${id}`,
+      `https://youtube.com/watch?v=${id}&t=42s&list=PL123`,
+      `https://m.youtube.com/watch?v=${id}`,
+      `https://youtu.be/${id}?si=abc`,
+      `youtu.be/${id}`,
+      `https://www.youtube.com/shorts/${id}`,
+      `https://www.youtube.com/embed/${id}`,
+      `https://www.youtube.com/live/${id}?feature=share`,
+    ])
+      expect(youTubeId(u), u).toBe(id);
+  });
+
+  it("rejects non-YouTube and look-alike hosts", () => {
+    expect(youTubeId("https://evil.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+    expect(youTubeId("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+    expect(youTubeId("https://www.youtube.com/watch?v=short")).toBeNull();
+    expect(youTubeId("https://www.youtube.com/@channel")).toBeNull();
+  });
+
+  it("only accepts http(s) links", () => {
+    expect(cleanUrl("javascript:alert(1)")).toBeNull();
+    expect(cleanUrl("data:text/html,hi")).toBeNull();
+    expect(cleanUrl("not a url")).toBeNull();
+    expect(cleanUrl("geeksforgeeks.org/binary-search")?.href).toBe("https://geeksforgeeks.org/binary-search");
+    expect(cleanUrl("http://example.com/a")?.protocol).toBe("http:");
+  });
+});

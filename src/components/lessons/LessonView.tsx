@@ -35,6 +35,7 @@ import { TASKS } from "@/components/dashboard/tasks";
 import CodeBlock from "./CodeBlock";
 import Celebration from "./Celebration";
 import ProblemRow from "./ProblemRow";
+import MyResources from "./MyResources";
 import dynamic from "next/dynamic";
 import Select from "@/components/ui/Select";
 import { VISUAL_TITLES } from "./visuals/titles";
@@ -455,6 +456,7 @@ export default function LessonView({ day }: { day: number }) {
         {/* ---------------- Resources ---------------- */}
         {tab === "resources" && (
           <div className="space-y-5">
+            <MyResources dayKey={lesson.key} />
             <section>
               <h3 className="mb-3 text-[15px] font-bold">Videos</h3>
               {topicVideos.length ? (

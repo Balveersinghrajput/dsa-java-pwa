@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { idbGet, idbSet } from "./db";
 import { defaultRestDays, leaveBalance, toISODate } from "./schedule";
-import type { AppState, Attempt, MockInterview, QuizResult, Schedule, TaskId } from "@/types";
+import type { AppState, Attempt, CustomResource, MockInterview, QuizResult, Schedule, TaskId } from "@/types";
 import { derive, type Derived } from "./derive";
 import { applyPlanConfig, planKeysFor, type PlanConfig } from "@/data/curriculum";
 import { remapDays } from "./planRemap";
@@ -46,6 +46,7 @@ export const freshState = (): AppState => ({
   autoLeave: false,
   targetDate: null,
   planKeys: [],
+  customResources: {},
 });
 
 const cfgOf = (s: AppState): PlanConfig => ({ customPhases: s.customPhases, customTopics: s.customTopics, extraConcepts: s.extraConcepts, splits: s.splits });
@@ -74,6 +75,7 @@ export function normalise(raw: unknown): AppState {
     schedule: { ...base.schedule, ...(r.schedule ?? {}) },
     reminder: { ...base.reminder, ...(r.reminder ?? {}) },
     timer: { ...base.timer, ...(r.timer ?? {}) },
+    customResources: r.customResources && typeof r.customResources === "object" && !Array.isArray(r.customResources) ? r.customResources : {},
     restDays: Array.isArray(r.restDays) ? r.restDays : defaultRestDays((r.perWeek ?? base.perWeek) as AppState["perWeek"]),
     notes,
   } as AppState;
@@ -261,6 +263,23 @@ function useStoreValue() {
           if (text.trim() || keep) notes[key] = { text, updated: new Date().toISOString() };
           else delete notes[key];
           return { ...s, notes };
+        }),
+
+      /* ---------- learner-added resources (per plan day) ---------- */
+      addResource: (dayKey: string, r: Omit<CustomResource, "id" | "added">) =>
+        update((s) => {
+          const list = s.customResources[dayKey] ?? [];
+          if (list.some((x) => x.url === r.url) || list.length >= 30) return s;
+          const item: CustomResource = { ...r, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, added: new Date().toISOString() };
+          return { ...s, customResources: { ...s.customResources, [dayKey]: [...list, item] } };
+        }),
+      removeResource: (dayKey: string, id: string) =>
+        update((s) => {
+          const list = (s.customResources[dayKey] ?? []).filter((x) => x.id !== id);
+          const customResources = { ...s.customResources };
+          if (list.length) customResources[dayKey] = list;
+          else delete customResources[dayKey];
+          return { ...s, customResources };
         }),
 
       toggleBookmark: (key: string) => update((s) => ({ ...s, bookmarks: toggle(s.bookmarks, key) })),

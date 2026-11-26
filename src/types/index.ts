@@ -38,6 +38,17 @@ export interface MockInterview {
 }
 
 /** Everything the app remembers. Stored in IndexedDB under one key. */
+/** A video or article the learner attached to a plan day. */
+export interface CustomResource {
+  id: string;
+  kind: "video" | "article";
+  url: string;
+  title: string;
+  videoId?: string; // YouTube id for videos
+  channel?: string;
+  added: string; // ISO time
+}
+
 export interface AppState {
   version: 2;
   name: string;
@@ -74,5 +85,7 @@ export interface AppState {
   targetDate: string | null; // learner's own target finish date
   /** Day keys the stored day numbers refer to (used to remap progress when the plan changes). */
   planKeys: string[];
+  /** Videos/articles the learner added, by stable plan-day key ("topicId#part"). */
+  customResources: Record<string, CustomResource[]>;
 }
 
