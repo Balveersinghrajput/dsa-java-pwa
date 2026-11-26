@@ -2,18 +2,18 @@ import { verifyPassword } from "@/lib/server/crypto";
 import { accountEmail, currentPasswordHash } from "@/lib/server/account";
 import { createSession } from "@/lib/server/token";
 import { sameOrigin, setAuthCookies } from "@/lib/server/session";
-import { clientIp, rateLimit, resetLimit } from "@/lib/server/rateLimit";
-import { body, json, tooMany } from "@/lib/server/http";
+import { clientIp, limit, clearLimit } from "@/lib/server/rateLimit";
+import { body, json, tooMany, guard } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "Bad origin." }, 403);
   const ip = clientIp(req);
   // 5 failed attempts per 15 minutes per IP, 10 per hour for the account (slows password guessing).
-  const byIp = rateLimit(`login:ip:${ip}`, 5, 15 * 60_000);
+  const byIp = await limit(`login:ip:${ip}`, 5, 15 * 60_000);
   if (!byIp.ok) return tooMany(byIp.retryAfter);
-  const byAcct = rateLimit("login:acct", 10, 60 * 60_000);
+  const byAcct = await limit("login:acct", 10, 60 * 60_000);
   if (!byAcct.ok) return tooMany(byAcct.retryAfter);
 
   const b = await body<{ email: string; password: string; remember: boolean }>(req);
@@ -26,8 +26,9 @@ export async function POST(req: Request) {
   const okPw = await verifyPassword(password, hash);
   if (email !== accountEmail() || !okPw) return json({ error: "Incorrect email or password." }, 401);
 
-  resetLimit(`login:ip:${ip}`);
-  resetLimit("login:acct");
+  await clearLimit(`login:ip:${ip}`);
+  await clearLimit("login:acct");
   const t = await createSession(b?.remember !== false, req.headers.get("user-agent") ?? "", ip);
   return setAuthCookies(json({ ok: true, email }), t);
 }
+export const POST = guard(handlePOST);

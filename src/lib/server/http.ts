@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { StorageNotConfigured } from "./kv";
 
 export const json = (data: unknown, status = 200, headers?: Record<string, string>) =>
   NextResponse.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } });
@@ -21,4 +22,24 @@ export function passwordProblem(pw: string): string | null {
   if (pw.length > 128) return "Use at most 128 characters.";
   if (!/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[^A-Za-z0-9]/.test(pw)) return "Include upper- and lower-case letters, a number and a symbol.";
   return null;
+}
+
+/**
+ * Wraps a route handler so storage/config failures return a clear JSON error
+ * (instead of a crash page) and are logged once.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function guard<A extends any[]>(fn: (...args: A) => Promise<Response>) {
+  return async (...args: A): Promise<Response> => {
+    try {
+      return await fn(...args);
+    } catch (e) {
+      if (e instanceof StorageNotConfigured) {
+        console.error("[storage]", e.message);
+        return json({ error: e.message, code: "storage" }, 503);
+      }
+      console.error("[api]", e);
+      return json({ error: "Something went wrong on the server. Please try again." }, 500);
+    }
+  };
 }

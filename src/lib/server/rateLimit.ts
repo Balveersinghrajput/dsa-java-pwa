@@ -1,3 +1,5 @@
+import { kvDel, kvHit, usingRedis } from "./kv";
+
 /**
  * Sliding-window rate limiter kept in memory (per server process). Behind
  * several instances use a shared store (e.g. Redis/Upstash) instead.
@@ -39,4 +41,25 @@ export function clientIp(req: Request) {
   const chain = (req.headers.get("x-forwarded-for") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const ip = (process.env.TRUST_PROXY === "1" ? chain[0] : chain[chain.length - 1]) || req.headers.get("x-real-ip") || "unknown";
   return ip.slice(0, 64);
+}
+
+/**
+ * Shared limit for sensitive routes (login, reset…). Uses Redis when configured so every
+ * serverless instance sees the same counters; falls back to the in-memory limiter.
+ */
+export async function limit(key: string, max: number, windowMs: number, cost = 1) {
+  if (usingRedis()) {
+    try {
+      const { count, ttl } = await kvHit(key, windowMs, cost);
+      return count > max ? { ok: false as const, retryAfter: Math.max(1, Math.ceil(ttl / 1000)) } : { ok: true as const, retryAfter: 0 };
+    } catch (e) {
+      console.error("[rateLimit] redis unavailable, using memory:", (e as Error).message);
+    }
+  }
+  return rateLimit(key, max, windowMs, cost);
+}
+
+export async function clearLimit(key: string) {
+  resetLimit(key);
+  if (usingRedis()) await kvDel(key).catch(() => {});
 }

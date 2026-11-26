@@ -2,16 +2,16 @@ import { hashPassword, verifyPassword } from "@/lib/server/crypto";
 import { currentPasswordHash, updateAccount } from "@/lib/server/account";
 import { createSession } from "@/lib/server/token";
 import { getUser, sameOrigin, setAuthCookies } from "@/lib/server/session";
-import { clientIp, rateLimit } from "@/lib/server/rateLimit";
-import { body, json, passwordProblem, tooMany } from "@/lib/server/http";
+import { clientIp, limit } from "@/lib/server/rateLimit";
+import { body, json, passwordProblem, tooMany, guard } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 
 /** Change password while signed in. Signs out every other device. */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "Bad origin." }, 403);
   if (!(await getUser())) return json({ error: "Please sign in again." }, 401);
-  const rl = rateLimit(`pw:ip:${clientIp(req)}`, 5, 15 * 60_000);
+  const rl = await limit(`pw:ip:${clientIp(req)}`, 5, 15 * 60_000);
   if (!rl.ok) return tooMany(rl.retryAfter);
 
   const b = await body<{ current: string; next: string }>(req);
@@ -24,3 +24,4 @@ export async function POST(req: Request) {
   const t = await createSession(true, req.headers.get("user-agent") ?? "", clientIp(req)); // keep this device signed in
   return setAuthCookies(json({ ok: true }), t);
 }
+export const POST = guard(handlePOST);

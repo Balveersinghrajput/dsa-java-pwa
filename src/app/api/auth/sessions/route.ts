@@ -1,12 +1,12 @@
 import { readAccount, updateAccount } from "@/lib/server/account";
 import { getUser, sameOrigin } from "@/lib/server/session";
-import { body, json } from "@/lib/server/http";
+import { body, json, guard } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Signed-in devices (no token data is ever returned). */
-export async function GET() {
+async function handleGET() {
   const u = await getUser();
   if (!u) return json({ error: "Please sign in again." }, 401);
   const list = (await readAccount()).sessions
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 /** Revoke one session ({ id }) or every other session ({ others: true }). */
-export async function DELETE(req: Request) {
+async function handleDELETE(req: Request) {
   if (!sameOrigin(req)) return json({ error: "Bad origin." }, 403);
   const u = await getUser();
   if (!u) return json({ error: "Please sign in again." }, 401);
@@ -28,3 +28,5 @@ export async function DELETE(req: Request) {
   }));
   return json({ ok: true });
 }
+export const GET = guard(handleGET);
+export const DELETE = guard(handleDELETE);

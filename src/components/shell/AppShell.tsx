@@ -182,7 +182,7 @@ function Frame({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <MobileTop onMenu={() => setMenu(true)} />
         {!isDashboard && (
-          <div className="sticky top-0 z-30 hidden items-center gap-4 border-b border-line bg-bg/85 px-8 py-3 backdrop-blur-xl lg:flex">
+          <div data-print-hide className="sticky top-0 z-30 hidden items-center gap-4 border-b border-line bg-bg/85 px-8 py-3 backdrop-blur-xl lg:flex">
             <SearchButton className="max-w-xl" />
             <div className="ml-auto"><TopActions /></div>
           </div>

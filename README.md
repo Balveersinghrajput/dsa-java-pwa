@@ -10,9 +10,23 @@ A 152-day, day-by-day Data Structures & Algorithms course in Java, built as an i
 npm install
 npm run dev                 # http://localhost:3000 (service worker is off in dev)
 npm run build && npm start  # production build with offline support
+npm test                    # automated tests (Vitest)
 ```
 
-Deploy to any Node host (Vercel works out of the box). A server is required for `/api/run`.
+## Deploy to Vercel
+
+Vercel's filesystem is read-only, so accounts, sessions, rate limits and synced progress live in **Upstash Redis** there. Locally they fall back to `./.data`.
+
+1. Vercel → your project → **Storage** → **Marketplace** → **Upstash (Redis)** → create the free database and connect it to the project. This adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+2. **Settings → Environment Variables**: add `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `SESSION_SECRET`, `APP_URL` (your `https://….vercel.app` address), `TRUST_PROXY=1` and the `SMTP_*` values below.
+3. Redeploy. If Redis is missing, login returns a clear "Server storage isn't configured" message instead of crashing.
+
+## Email (forgot password)
+
+1. Turn on 2-Step Verification for your Google account.
+2. Create an App Password at <https://myaccount.google.com/apppasswords>.
+3. Set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=<your gmail>`, `SMTP_PASS=<app password>` and `SMTP_FROM=DSA in Java <your gmail>` in `.env.local` and in Vercel.
+4. Check it with `node scripts/test-email.mjs`.
 
 ## Java execution (Practice Arena)
 
@@ -90,4 +104,6 @@ To add a topic, add it to `curriculum.ts` and give it content in `src/data/conte
 
 ## Data & offline
 
-Progress, notes, bookmarks and solutions stay on the device in IndexedDB. There is no account, so nothing syncs between devices. Use **Settings → Export / Import** to move data. Lessons, notes and templates work offline after you visit them, or after **Settings → Download all**. Running Java and playing videos need a connection.
+Progress, notes, bookmarks and solutions are saved on the device first (IndexedDB), so the app works offline. They are also synced to your account on the server (`/api/progress`), about 1.5 s after each change and again whenever the tab regains focus. If two devices changed something, the most recent change wins. **Profile → Cloud sync** shows the status. **Settings → Export / Import** still works for backups.
+
+**Revision sheets** (`/revision`) print one page per phase: key points, complexities, must-solve problems (ticked when solved) and your lesson notes. Use Print, then "Save as PDF". Lessons, notes and templates work offline after you visit them, or after **Settings → Download all**. Running Java and playing videos need a connection.

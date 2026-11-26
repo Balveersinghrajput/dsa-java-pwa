@@ -49,7 +49,11 @@ function issueAccess(sid: string, v: number) {
 export async function verifyAccess(token: string | undefined): Promise<AccessClaims | null> {
   const c = unsign<AccessClaims>(token);
   if (!c || c.typ !== "access" || c.exp < Date.now() || c.sub !== accountEmail()) return null;
-  const acct = await readAccount();
+  const acct = await readAccount().catch((e) => {
+    console.error("[auth] session store unavailable:", (e as Error).message);
+    return null;
+  });
+  if (!acct) return null;
   if (c.v !== acct.passwordVersion) return null;
   return acct.sessions.some((s) => s.id === c.sid && s.expires > Date.now()) ? c : null;
 }

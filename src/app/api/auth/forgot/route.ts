@@ -2,8 +2,8 @@ import { randomToken, sha256 } from "@/lib/server/crypto";
 import { accountEmail, updateAccount } from "@/lib/server/account";
 import { mailConfigured, sendMail } from "@/lib/server/mail";
 import { sameOrigin } from "@/lib/server/session";
-import { clientIp, rateLimit } from "@/lib/server/rateLimit";
-import { body, json, tooMany } from "@/lib/server/http";
+import { clientIp, limit } from "@/lib/server/rateLimit";
+import { body, json, tooMany, guard } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 const TTL = 15 * 60_000;
@@ -12,11 +12,11 @@ const TTL = 15 * 60_000;
  * Sends a one-time reset link to the account email. The response is the same
  * whether or not the email matches, so it can't be used to discover accounts.
  */
-export async function POST(req: Request) {
+async function handlePOST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "Bad origin." }, 403);
-  const ip = rateLimit(`forgot:ip:${clientIp(req)}`, 3, 60 * 60_000);
+  const ip = await limit(`forgot:ip:${clientIp(req)}`, 3, 60 * 60_000);
   if (!ip.ok) return tooMany(ip.retryAfter);
-  const acct = rateLimit("forgot:acct", 5, 60 * 60_000);
+  const acct = await limit("forgot:acct", 5, 60 * 60_000);
   if (!acct.ok) return tooMany(acct.retryAfter);
 
   const b = await body<{ email: string }>(req);
@@ -45,3 +45,4 @@ export async function POST(req: Request) {
   }
   return json(generic);
 }
+export const POST = guard(handlePOST);

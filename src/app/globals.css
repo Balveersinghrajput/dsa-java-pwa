@@ -212,3 +212,22 @@ button:disabled { cursor: not-allowed; }
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------- printing (revision sheets) ---------- */
+.rev-cols { columns: 2 300px; column-gap: 28px; }
+.rev-topic { break-inside: avoid; }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  :root, [data-theme] {
+    --bg: #fff; --surface: #fff; --surface-2: #f5f6fa; --line: #dfe2ea; --ink: #0b1437; --ink-2: #303a59; --muted: #667089;
+  }
+  html, body { background: #fff !important; }
+  aside, nav, header.sticky, .print-hide, [data-print-hide] { display: none !important; }
+  main { padding: 0 !important; }
+  main, .page, .page * { animation: none !important; transition: none !important; }
+  .rev-sheet { border: 0 !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important; break-after: page; }
+  .rev-sheet:last-child { break-after: auto; }
+  .rev-cols { column-gap: 8mm; }
+  .rev-sheet h2 { font-size: 18pt; }
+  .rev-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

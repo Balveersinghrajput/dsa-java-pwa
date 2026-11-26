@@ -7,6 +7,7 @@ import type { AppState, Attempt, MockInterview, QuizResult, Schedule, TaskId } f
 import { derive, type Derived } from "./derive";
 import { applyPlanConfig, planKeysFor, type PlanConfig } from "@/data/curriculum";
 import { remapDays } from "./planRemap";
+import { readChangedAt, useServerSync, writeChangedAt } from "./sync";
 
 const KEY = "state";
 const LEGACY_KEY = "dsa-java-progress-v1";
@@ -107,8 +108,25 @@ function useStoreValue() {
   const [saveError, setSaveError] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // When the state last changed on this device (used to decide which copy wins when syncing).
+  const changedAt = useRef(0);
+
   useEffect(() => {
+    changedAt.current = readChangedAt();
     load().then(setState);
+  }, []);
+
+  const adopt = useCallback((s: unknown, at: number) => {
+    changedAt.current = at;
+    writeChangedAt(at);
+    setState(normalise(s));
+  }, []);
+  const sync = useServerSync(state, changedAt, adopt);
+
+  const touch = useCallback(() => {
+    // Strictly increasing, so two changes in the same millisecond still count.
+    changedAt.current = Math.max(Date.now(), changedAt.current + 1);
+    writeChangedAt(changedAt.current);
   }, []);
 
   // Debounced persistence to IndexedDB (localStorage as a fallback copy).
@@ -129,13 +147,28 @@ function useStoreValue() {
     }, 250);
   }, [state]);
 
-  const update = useCallback((fn: (s: AppState) => AppState) => setState((s) => (s ? fn(s) : s)), []);
+  const update = useCallback(
+    (fn: (s: AppState) => AppState) =>
+      setState((s) => {
+        if (!s) return s;
+        const next = fn(s);
+        if (next !== s) touch();
+        return next;
+      }),
+    [touch],
+  );
 
   const actions = useMemo(
     () => ({
       update,
-      replace: (s: AppState) => setState(normalise(s)),
-      reset: () => setState(freshState()),
+      replace: (s: AppState) => {
+        touch();
+        setState(normalise(s));
+      },
+      reset: () => {
+        touch();
+        setState(freshState());
+      },
 
       /** Manual only: lessons are never completed automatically. Study time comes from the timer. */
       toggleDay: (day: number) =>
@@ -257,7 +290,7 @@ function useStoreValue() {
           return withPlan(s, { ...s, splits });
         }),
     }),
-    [update],
+    [update, touch],
   );
 
   // Derived numbers are computed once per change and shared by every component.
@@ -267,7 +300,7 @@ function useStoreValue() {
     return derive(state);
   }, [state]);
 
-  return { state, saveError, derived, ...actions };
+  return { state, saveError, derived, sync, ...actions };
 }
 
 type Store = ReturnType<typeof useStoreValue>;

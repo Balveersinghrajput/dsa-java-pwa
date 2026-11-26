@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpenText, CalendarDays, CheckCircle2, Clock, Flame, KeyRound, Laptop, Loader2, LogOut, Mail, Pencil, Settings, ShieldCheck, Smartphone, Trophy } from "lucide-react";
+import { BookOpenText, CalendarDays, CheckCircle2, Clock, Cloud, CloudOff, Flame, RefreshCw, KeyRound, Laptop, Loader2, LogOut, Mail, Pencil, Settings, ShieldCheck, Smartphone, Trophy } from "lucide-react";
 import { plan, totalProblems } from "@/data/curriculum";
 import { hm, useDerived } from "@/lib/derive";
-import { useAppState } from "@/lib/store";
+import { useAppState, useStore } from "@/lib/store";
 import { parseISODate } from "@/lib/schedule";
 import { useAccount, signOut } from "@/hooks/useAccount";
 import { Button, Card, Ring, cardCls, st } from "@/components/ui";
@@ -159,6 +159,7 @@ export default function ProfilePage() {
         </Card>
       </div>
 
+      <SyncCard />
       <Sessions />
     </div>
   );
@@ -232,3 +233,36 @@ function Sessions() {
   );
 }
 
+
+/** Shows whether progress is saved on the server (so it follows you to other devices). */
+function SyncCard() {
+  const { sync } = useStore();
+  const label: Record<typeof sync.status, string> = {
+    idle: "Waiting to sync…",
+    syncing: "Syncing…",
+    synced: "All progress is saved to your account",
+    offline: "Offline: changes are kept on this device and sync when you're back online",
+    "signed-out": "Sign in again to sync",
+    error: "Couldn't reach the server. Your progress is safe on this device; we'll retry.",
+  };
+  const ok = sync.status === "synced" || sync.status === "syncing" || sync.status === "idle";
+  return (
+    <Card i={10} className="mt-5 min-w-0 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`grid h-10 w-10 flex-none place-items-center rounded-xl ${ok ? "bg-green-soft text-green" : "bg-amber-soft text-amber"}`}>
+          {ok ? <Cloud className="h-5 w-5" /> : <CloudOff className="h-5 w-5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[16px] font-bold">Cloud sync</h2>
+          <p className="text-[12.5px] text-muted">
+            {label[sync.status]}
+            {sync.lastSynced && sync.status === "synced" ? ` · ${new Date(sync.lastSynced).toLocaleTimeString(undefined, { timeStyle: "short" })}` : ""}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => void sync.syncNow()} disabled={sync.status === "syncing"}>
+          <RefreshCw className={`h-4 w-4 ${sync.status === "syncing" ? "animate-spin" : ""}`} /> Sync now
+        </Button>
+      </div>
+    </Card>
+  );
+}
