@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { safeEqual, sha256, sign, unsign } from "./crypto";
-import { accountEmail, readAccount, updateAccount, type StoredSession } from "./account";
+import { ADMIN_ID, readAccount, updateAccount, userById, type Role, type StoredSession } from "./account";
 
 /**
  * Two-token sessions:
@@ -17,6 +17,8 @@ const GRACE_MS = 30_000; // previous refresh token stays valid this long after r
 
 export interface AccessClaims {
   typ: "access";
+  uid: string; // user id ("admin" for the owner)
+  role: Role;
   sub: string; // email
   sid: string; // session id
   v: number; // password version
@@ -41,33 +43,48 @@ export const clearedCookies = [
   { name: REFRESH_COOKIE, value: "", path: "/api/auth", maxAge: 0 },
 ];
 
-function issueAccess(sid: string, v: number) {
-  return sign({ typ: "access", sub: accountEmail(), sid, v, exp: Date.now() + ACCESS_TTL * 1000 } satisfies AccessClaims);
+function issueAccess(uid: string, role: Role, email: string, sid: string, v: number) {
+  return sign({ typ: "access", uid, role, sub: email, sid, v, exp: Date.now() + ACCESS_TTL * 1000 } satisfies AccessClaims);
 }
 
-/** Valid access token → claims. Checks signature, expiry, account, password version and that the session still exists. */
+/** Valid access token → claims. Checks signature, expiry, user (exists, not disabled, same email), password version and session. */
 export async function verifyAccess(token: string | undefined): Promise<AccessClaims | null> {
-  let c: AccessClaims | null;
+  let c: (Omit<AccessClaims, "uid" | "role"> & { uid?: string; role?: Role }) | null;
   try {
     c = unsign<AccessClaims>(token);
   } catch (e) {
     console.error("[auth]", (e as Error).message);
     return null;
   }
-  if (!c || c.typ !== "access" || c.exp < Date.now() || c.sub !== accountEmail()) return null;
-  const acct = await readAccount().catch((e) => {
+  if (!c || c.typ !== "access" || c.exp < Date.now()) return null;
+  const uid = c.uid ?? ADMIN_ID; // tokens issued before multi-user support belong to the owner
+  try {
+    const user = await userById(uid);
+    if (!user || user.disabled || user.email !== c.sub) return null;
+    const acct = await readAccount(uid);
+    if (c.v !== acct.passwordVersion) return null;
+    if (!acct.sessions.some((s) => s.id === c.sid && s.expires > Date.now())) return null;
+    return { ...c, uid, role: user.role } as AccessClaims;
+  } catch (e) {
     console.error("[auth] session store unavailable:", (e as Error).message);
     return null;
-  });
-  if (!acct) return null;
-  if (c.v !== acct.passwordVersion) return null;
-  return acct.sessions.some((s) => s.id === c.sid && s.expires > Date.now()) ? c : null;
+  }
 }
 
 const newSecret = () => randomBytes(32).toString("base64url");
 
+/** Refresh tokens look like "uid.sid.secret" (older owner tokens: "sid.secret"). */
+export function parseRefresh(refresh: string | undefined): { uid: string; sid: string; secret: string } | null {
+  const parts = (refresh ?? "").split(".");
+  if (parts.length === 2 && parts[0] && parts[1]) return { uid: ADMIN_ID, sid: parts[0], secret: parts[1] };
+  if (parts.length === 3 && parts.every(Boolean)) return { uid: parts[0], sid: parts[1], secret: parts[2] };
+  return null;
+}
+
 /** Creates a session after a successful login. */
-export async function createSession(remember: boolean, ua: string, ip: string) {
+export async function createSession(uid: string, remember: boolean, ua: string, ip: string) {
+  const user = await userById(uid);
+  if (!user) throw new Error("Unknown user");
   const id = randomBytes(12).toString("base64url");
   const secret = newSecret();
   const now = Date.now();
@@ -82,8 +99,8 @@ export async function createSession(remember: boolean, ua: string, ip: string) {
     ua: ua.slice(0, 200),
     ip,
   };
-  const acct = await updateAccount((d) => ({ ...d, sessions: [...d.sessions, session].slice(-20) }));
-  return { access: issueAccess(id, acct.passwordVersion), refresh: `${id}.${secret}`, session };
+  const acct = await updateAccount(uid, (d) => ({ ...d, sessions: [...d.sessions, session].slice(-20) }));
+  return { access: issueAccess(uid, user.role, user.email, id, acct.passwordVersion), refresh: `${uid}.${id}.${secret}`, session };
 }
 
 /**
@@ -91,25 +108,27 @@ export async function createSession(remember: boolean, ua: string, ip: string) {
  * Returns null if invalid. Reuse of an old token outside the grace window revokes the session.
  */
 export async function rotate(refresh: string | undefined, ip: string) {
-  if (!refresh) return null;
-  const [id, secret] = refresh.split(".");
-  if (!id || !secret) return null;
-  const hash = sha256(secret);
+  const p = parseRefresh(refresh);
+  if (!p) return null;
+  const user = await userById(p.uid);
+  if (!user || user.disabled) return null;
+  const { uid, sid: id } = p;
+  const hash = sha256(p.secret);
   const nextSecret = newSecret();
   let result: { access: string; refresh?: string; session: StoredSession } | null = null;
 
-  await updateAccount((d) => {
+  await updateAccount(uid, (d) => {
     const s = d.sessions.find((x) => x.id === id);
     if (!s || s.expires < Date.now()) return d;
     const now = Date.now();
     if (safeEqual(hash, s.tokenHash)) {
       const updated = { ...s, prevHash: s.tokenHash, tokenHash: sha256(nextSecret), rotatedAt: now, lastUsed: now, ip };
-      result = { access: issueAccess(id, d.passwordVersion), refresh: `${id}.${nextSecret}`, session: updated };
+      result = { access: issueAccess(uid, user.role, user.email, id, d.passwordVersion), refresh: `${uid}.${id}.${nextSecret}`, session: updated };
       return { ...d, sessions: d.sessions.map((x) => (x.id === id ? updated : x)) };
     }
     if (s.prevHash && safeEqual(hash, s.prevHash) && now - s.rotatedAt < GRACE_MS) {
       // A parallel request used the token we just rotated: give it an access token only.
-      result = { access: issueAccess(id, d.passwordVersion), session: s };
+      result = { access: issueAccess(uid, user.role, user.email, id, d.passwordVersion), session: s };
       return d;
     }
     // Old token replayed → assume it was stolen and end this session.
@@ -119,11 +138,10 @@ export async function rotate(refresh: string | undefined, ip: string) {
   return result as { access: string; refresh?: string; session: StoredSession } | null;
 }
 
-export async function revokeSession(id: string) {
-  await updateAccount((d) => ({ ...d, sessions: d.sessions.filter((s) => s.id !== id) }));
+export async function revokeSession(uid: string, id: string) {
+  await updateAccount(uid, (d) => ({ ...d, sessions: d.sessions.filter((s) => s.id !== id) }));
 }
 
-export const sessionIdFromRefresh = (refresh: string | undefined) => refresh?.split(".")[0] || null;
 
 /** Blocks cross-site requests: the Origin header (when present) must match this host. */
 export function sameOrigin(req: Request) {

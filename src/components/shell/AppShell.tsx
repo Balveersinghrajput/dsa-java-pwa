@@ -13,6 +13,7 @@ import Sidebar, { InstallButton } from "./Sidebar";
 import { Bellbutton, InitialAvatar, Logo, SearchButton, TopActions } from "./bits";
 import { TimerPill } from "@/components/timer/StudyTimer";
 import { MOBILE_NAV, NAV, isActive } from "./nav";
+import { useNavItems } from "./useNav";
 import { Skeleton } from "@/components/ui";
 
 function Loading() {
@@ -58,6 +59,7 @@ function MobileTop({ onMenu }: { onMenu: () => void }) {
 
 /** Slide-in side menu for phones and tablets. */
 function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navItems = useNavItems();
   const pathname = usePathname();
   const { state, derived } = useStore();
   useEffect(() => {
@@ -100,7 +102,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
         )}
 
         <nav className="mt-4 space-y-1" aria-label="All sections">
-          {NAV.map(({ href, label, icon: I }, k) => {
+          {navItems.map(({ href, label, icon: I }, k) => {
             const active = isActive(pathname, href);
             return (
               <Link
@@ -163,7 +165,7 @@ function MobileNav() {
   );
 }
 
-const AUTH_PAGES = ["/login", "/forgot", "/reset"];
+const AUTH_PAGES = ["/login", "/forgot", "/reset", "/signup"];
 
 function Frame({ children }: { children: ReactNode }) {
   const { state } = useStore();

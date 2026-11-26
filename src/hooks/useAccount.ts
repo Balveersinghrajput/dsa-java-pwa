@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
 export interface Account {
+  id: string;
+  role: "admin" | "user";
+  name: string;
   email: string;
   accessExpires: number;
   sessionExpires: number | null;

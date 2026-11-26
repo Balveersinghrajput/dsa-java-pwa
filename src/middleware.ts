@@ -9,8 +9,8 @@ export const config = {
   matcher: ["/((?!_next/static|_next/image|icons/|favicon.ico|manifest.webmanifest|sw.js|robots.txt).*)"],
 };
 
-const PUBLIC_PAGES = ["/login", "/forgot", "/reset"];
-const PUBLIC_API = ["/api/auth/login", "/api/auth/refresh", "/api/auth/forgot", "/api/auth/reset", "/api/auth/logout", "/api/health", "/api/cron/keepalive"];
+const PUBLIC_PAGES = ["/login", "/forgot", "/reset", "/signup"];
+const PUBLIC_API = ["/api/auth/login", "/api/auth/refresh", "/api/auth/forgot", "/api/auth/reset", "/api/auth/logout", "/api/auth/signup", "/api/health", "/api/cron/keepalive"];
 
 const tooMany = (retry: number, api: boolean) =>
   api
@@ -36,10 +36,12 @@ export async function middleware(req: NextRequest) {
   const user = await verifyAccess(req.cookies.get(ACCESS_COOKIE)?.value);
 
   if (PUBLIC_PAGES.includes(pathname)) {
-    if (user && pathname === "/login") return NextResponse.redirect(new URL("/", req.url));
+    if (user && (pathname === "/login" || pathname === "/signup")) return NextResponse.redirect(new URL("/", req.url));
     return NextResponse.next();
   }
   if (PUBLIC_API.includes(pathname)) return NextResponse.next();
+  // The admin area is only for the owner; friends are sent back to their dashboard.
+  if (user && (pathname === "/admin" || pathname.startsWith("/admin/")) && user.uid !== "admin") return NextResponse.redirect(new URL("/", req.url));
   if (user) return NextResponse.next();
 
   // Not signed in (or access token expired).

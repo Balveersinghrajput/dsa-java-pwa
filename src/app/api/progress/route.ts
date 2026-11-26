@@ -1,4 +1,5 @@
 import { kvGet, kvUpdate } from "@/lib/server/kv";
+import { progressKey } from "@/lib/server/account";
 import { getUser, sameOrigin } from "@/lib/server/session";
 import { limit } from "@/lib/server/rateLimit";
 import { body, guard, json, tooMany } from "@/lib/server/http";
@@ -6,7 +7,6 @@ import { body, guard, json, tooMany } from "@/lib/server/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const KEY = "progress";
 const MAX_BYTES = 900_000; // stays under Upstash's 1 MB request limit
 
 export interface StoredProgress {
@@ -17,8 +17,9 @@ export interface StoredProgress {
 
 /** The signed-in user's progress saved on the server. */
 async function handleGET() {
-  if (!(await getUser())) return json({ error: "Please sign in." }, 401);
-  const p = await kvGet<StoredProgress>(KEY);
+  const u = await getUser();
+  if (!u) return json({ error: "Please sign in." }, 401);
+  const p = await kvGet<StoredProgress>(progressKey(u.uid)); // each user only ever sees their own record
   return json(p ?? { state: null, updatedAt: 0, savedAt: 0 });
 }
 
@@ -43,7 +44,7 @@ async function handlePUT(req: Request) {
   if (JSON.stringify(b.state).length > MAX_BYTES) return json({ error: "Progress is too large to sync." }, 413);
 
   let conflict: StoredProgress | null = null;
-  const saved = await kvUpdate<StoredProgress>(KEY, () => ({ state: null, updatedAt: 0, savedAt: 0 }), (cur) => {
+  const saved = await kvUpdate<StoredProgress>(progressKey(u.uid), () => ({ state: null, updatedAt: 0, savedAt: 0 }), (cur) => {
     if (cur.state && cur.updatedAt > updatedAt) {
       conflict = cur;
       return cur;

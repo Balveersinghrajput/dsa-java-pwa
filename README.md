@@ -58,6 +58,17 @@ The whole app sits behind a login page (`/login`). Every page and API needs a si
 - **Other protections:** cross-site requests are blocked by an Origin check and SameSite cookies, redirects can't leave the site, and security headers are set on every response.
 - **Forgot password:** emails a one-time reset link valid for 15 minutes. It needs `SMTP_*` settings in `.env.local`. A reset signs out every device.
 
+## Friends (invite-only accounts)
+
+The owner signs in with `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH`. Friends join with a one-time invite link:
+
+1. **Friends (Admin)** in the menu (visible only to the owner) → **Create link** → send it to a friend.
+2. They open it, enter name, email and password, and start their own journey.
+3. Each friend's progress, notes and devices are stored separately (`account:<id>`, `progress:<id>`). They can't see each other's data or yours.
+4. The owner can **view** each friend's progress read-only, **disable** an account (signs them out everywhere) or **delete** it with all its data.
+
+Passwords are stored only as scrypt hashes. The sign-up page tells friends that the admin can view their progress.
+
 ## Study timer
 
 The **Study Time** card on the dashboard has three buttons. **Start** begins timing and **Stop** pauses it; press Start again to resume. **End day** adds the session to your study log. The timer keeps running across pages and reloads, and a small timer in the top bar shows it.

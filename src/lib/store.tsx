@@ -7,9 +7,9 @@ import type { AppState, Attempt, MockInterview, QuizResult, Schedule, TaskId } f
 import { derive, type Derived } from "./derive";
 import { applyPlanConfig, planKeysFor, type PlanConfig } from "@/data/curriculum";
 import { remapDays } from "./planRemap";
-import { readChangedAt, useServerSync, writeChangedAt } from "./sync";
+import { readChangedAt, setSyncUser, useServerSync, writeChangedAt } from "./sync";
+import { refreshSession } from "./api";
 
-const KEY = "state";
 const LEGACY_KEY = "dsa-java-progress-v1";
 
 export const DEFAULT_SCHEDULE: Schedule = { learn: 90, implement: 30, practice: 90, revise: 15 };
@@ -82,22 +82,53 @@ export function normalise(raw: unknown): AppState {
   return merged.planKeys.length ? remapDays(merged, merged.planKeys, keys) : { ...merged, planKeys: keys };
 }
 
-async function load(): Promise<AppState> {
+const PUBLIC = ["/login", "/forgot", "/reset", "/signup"];
+const UID_KEY = "dsa-uid";
+
+/** Local storage keys per account, so people sharing a device never see each other's data. */
+const keysFor = (uid: string) =>
+  uid === "admin" ? { idb: "state", backup: "dsa-java-state" } : { idb: `state:${uid}`, backup: `dsa-java-state:${uid}` };
+
+/** Who is signed in on this device (falls back to the last known account when offline). */
+async function whoAmI(): Promise<{ id: string; name: string } | null> {
   try {
-    const saved = await idbGet<AppState>(KEY);
-    if (saved) return normalise(saved);
+    let r = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+    if (r.status === 401 && (await refreshSession())) r = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+    if (r.ok) {
+      const me = (await r.json()) as { id: string; name: string };
+      localStorage.setItem(UID_KEY, me.id);
+      return me;
+    }
+  } catch {
+    /* offline */
+  }
+  const last = globalThis.localStorage?.getItem(UID_KEY);
+  return last ? { id: last, name: "" } : null;
+}
+
+async function load(): Promise<{ uid: string; state: AppState } | null> {
+  // Sign-in pages don't use progress; loading nothing also means nothing gets saved there.
+  if (PUBLIC.includes(location.pathname)) return null;
+  const me = await whoAmI();
+  const uid = me?.id ?? "admin";
+  const k = keysFor(uid);
+  const fresh = () => ({ ...freshState(), name: me?.name || "Learner" });
+  try {
+    const saved = await idbGet<AppState>(k.idb);
+    if (saved) return { uid, state: normalise(saved) };
   } catch {
     /* IndexedDB blocked: fall back to localStorage below */
   }
   try {
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) return normalise(JSON.parse(legacy));
-    const backup = localStorage.getItem("dsa-java-state");
-    if (backup) return normalise(JSON.parse(backup));
+    const backup = localStorage.getItem(k.backup);
+    if (backup) return { uid, state: normalise(JSON.parse(backup)) };
+    // Data saved before accounts existed belongs to the owner.
+    const legacy = uid === "admin" ? localStorage.getItem(LEGACY_KEY) : null;
+    if (legacy) return { uid, state: normalise(JSON.parse(legacy)) };
   } catch {
     /* ignore */
   }
-  return freshState();
+  return { uid, state: fresh() };
 }
 
 const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -110,10 +141,17 @@ function useStoreValue() {
 
   // When the state last changed on this device (used to decide which copy wins when syncing).
   const changedAt = useRef(0);
+  const uid = useRef("admin");
 
   useEffect(() => {
-    changedAt.current = readChangedAt();
-    load().then(setState);
+    load().then((r) => {
+      if (!r) return;
+      const { uid: id, state: loaded } = r;
+      uid.current = id;
+      setSyncUser(id);
+      changedAt.current = readChangedAt();
+      setState(loaded);
+    });
   }, []);
 
   const adopt = useCallback((s: unknown, at: number) => {
@@ -134,11 +172,12 @@ function useStoreValue() {
     if (!state) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      idbSet(KEY, state)
+      const k = keysFor(uid.current);
+      idbSet(k.idb, state)
         .then(() => setSaveError(false))
         .catch(() => {
           try {
-            localStorage.setItem("dsa-java-state", JSON.stringify(state));
+            localStorage.setItem(k.backup, JSON.stringify(state));
             setSaveError(false);
           } catch {
             setSaveError(true);

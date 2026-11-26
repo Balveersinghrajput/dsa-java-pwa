@@ -64,7 +64,7 @@ describe("file storage (local)", () => {
   it("stores the account, creates and rotates sessions, detects token reuse", async () => {
     process.env.ACCOUNT_DATA_DIR = mkdtempSync(path.join(tmpdir(), "dsa-test-"));
     const { createSession, rotate, verifyAccess } = await import("@/lib/server/token");
-    const t = await createSession(true, "vitest", "1.2.3.4");
+    const t = await createSession("admin", true, "vitest", "1.2.3.4");
     expect(await verifyAccess(t.access)).toMatchObject({ sid: t.session.id });
 
     const r1 = await rotate(t.refresh, "1.2.3.4");
@@ -126,7 +126,7 @@ describe("Upstash Redis storage", () => {
     vi.stubGlobal("fetch", r.fetchMock);
 
     const { createSession, verifyAccess, rotate } = await import("@/lib/server/token");
-    const t = await createSession(false, "ua", "ip");
+    const t = await createSession("admin", false, "ua", "ip");
     expect(JSON.parse(r.data.get("dsa:account")!).sessions).toHaveLength(1);
     expect(r.data.has("dsa:lock:account")).toBe(false); // lock released
 
@@ -155,7 +155,7 @@ describe("Upstash Redis storage", () => {
 describe("progress sync API", () => {
   async function route() {
     process.env.ACCOUNT_DATA_DIR = mkdtempSync(path.join(tmpdir(), "dsa-test-"));
-    vi.doMock("@/lib/server/session", () => ({ getUser: async () => ({ sid: "s1", sub: "tester@example.test" }), sameOrigin: () => true }));
+    vi.doMock("@/lib/server/session", () => ({ getUser: async () => ({ uid: "admin", sid: "s1", sub: "tester@example.test" }), sameOrigin: () => true }));
     return import("@/app/api/progress/route");
   }
   const put = (body: unknown) => new Request("http://localhost/api/progress", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });

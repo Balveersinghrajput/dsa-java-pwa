@@ -11,7 +11,8 @@ import { useAppState } from "@/lib/store";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Modal, Ring } from "@/components/ui";
 import { Avatar, Logo } from "./bits";
-import { NAV, isActive } from "./nav";
+import { isActive } from "./nav";
+import { useNavItems } from "./useNav";
 
 export function InstallHelp({ open, onClose, isIOS }: { open: boolean; onClose: () => void; isIOS: boolean }) {
   return (
@@ -54,6 +55,7 @@ export function InstallButton({ className = "", onLight = false }: { className?:
 }
 
 export default function Sidebar() {
+  const navItems = useNavItems();
   const pathname = usePathname();
   const { state } = useAppState();
   const d = useDerived();
@@ -69,7 +71,7 @@ export default function Sidebar() {
       </Link>
 
       <nav className="mt-7 space-y-1" aria-label="Main">
-        {NAV.map(({ href, label, icon: I }) => {
+        {navItems.map(({ href, label, icon: I }) => {
           const active = isActive(pathname, href);
           return (
             <Link

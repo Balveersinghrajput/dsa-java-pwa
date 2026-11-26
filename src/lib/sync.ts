@@ -15,12 +15,17 @@ import type { AppState } from "@/types";
 export type SyncStatus = "idle" | "syncing" | "synced" | "offline" | "signed-out" | "error";
 
 const META = "dsa-sync-changed-at";
-const PUBLIC = ["/login", "/forgot", "/reset"];
+const PUBLIC = ["/login", "/forgot", "/reset", "/signup"];
 
-export const readChangedAt = () => Number(globalThis.localStorage?.getItem(META) || 0);
+/** Which account this device's local data belongs to ("admin" keeps the original keys). */
+let currentUid = "admin";
+export const setSyncUser = (uid: string) => (currentUid = uid);
+const metaKey = () => (currentUid === "admin" ? META : `${META}:${currentUid}`);
+
+export const readChangedAt = () => Number(globalThis.localStorage?.getItem(metaKey()) || 0);
 export const writeChangedAt = (t: number) => {
   try {
-    localStorage.setItem(META, String(t));
+    localStorage.setItem(metaKey(), String(t));
   } catch {
     /* private mode */
   }

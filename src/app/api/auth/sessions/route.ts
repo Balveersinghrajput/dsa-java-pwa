@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 async function handleGET() {
   const u = await getUser();
   if (!u) return json({ error: "Please sign in again." }, 401);
-  const list = (await readAccount()).sessions
+  const list = (await readAccount(u.uid)).sessions
     .filter((s) => s.expires > Date.now())
     .sort((a, b) => b.lastUsed - a.lastUsed)
     .map((s) => ({ id: s.id, ua: s.ua, ip: s.ip, created: s.created, lastUsed: s.lastUsed, expires: s.expires, current: s.id === u.sid }));
@@ -22,7 +22,7 @@ async function handleDELETE(req: Request) {
   const u = await getUser();
   if (!u) return json({ error: "Please sign in again." }, 401);
   const b = await body<{ id: string; others: boolean }>(req);
-  await updateAccount((d) => ({
+  await updateAccount(u.uid, (d) => ({
     ...d,
     sessions: d.sessions.filter((s) => (b?.others ? s.id === u.sid : s.id !== String(b?.id ?? ""))),
   }));

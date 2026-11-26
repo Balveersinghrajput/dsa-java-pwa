@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConfigError } from "./crypto";
 
@@ -162,4 +162,14 @@ export async function kvPing(): Promise<"ok" | string> {
   } catch (e) {
     return (e as Error).message;
   }
+}
+
+/** Deletes a stored record (account, progress…). */
+export async function kvRemove(key: string) {
+  assertStorage();
+  if (usingRedis()) {
+    await redis(["DEL", PREFIX + key]);
+    return;
+  }
+  await unlink(fileOf(key)).catch(() => {});
 }
