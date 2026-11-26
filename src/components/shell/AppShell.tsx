@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { LogOut, Menu, Search, X } from "lucide-react";
 import { signOut } from "@/hooks/useAccount";
 import { StoreProvider, useStore } from "@/lib/store";
-import { useNotificationClicks, useReminders } from "@/hooks/useReminders";
+import { useNotificationClicks, usePushRegistration, useReminders } from "@/hooks/useReminders";
 import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive";
 import { PaletteProvider, usePalette } from "./CommandPalette";
 import Sidebar, { InstallButton } from "./Sidebar";
@@ -174,6 +174,7 @@ function Frame({ children }: { children: ReactNode }) {
   useEffect(() => setMenu(false), [pathname]);
   useReminders();
   useNotificationClicks();
+  usePushRegistration();
   useSessionKeepAlive(!AUTH_PAGES.includes(pathname));
   // Login, forgot and reset pages are full-screen, without the app chrome.
   if (AUTH_PAGES.includes(pathname)) return <>{children}</>;

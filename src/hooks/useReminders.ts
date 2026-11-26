@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { plan } from "@/data/curriculum";
 import { notify } from "@/lib/notify";
+import { pushActive, registerPush } from "@/lib/push";
 
 /**
  * Daily study reminder. Browsers only let a web app schedule this while the
@@ -21,7 +22,7 @@ export function useReminders() {
   useEffect(() => {
     if (!enabled || !pending || typeof Notification === "undefined") return;
     const tick = () => {
-      if (Notification.permission !== "granted") return;
+      if (Notification.permission !== "granted" || pushActive()) return; // the server sends it instead
       const now = new Date();
       const [h, m] = time.split(":").map(Number);
       const key = `dsa-reminded-${todayISO}`;
@@ -48,4 +49,15 @@ export function useNotificationClicks() {
     sw.addEventListener("message", on);
     return () => sw.removeEventListener("message", on);
   }, []);
+}
+
+/** Keeps this device registered for server reminders (refreshes the subscription and time zone). */
+export function usePushRegistration() {
+  const { state } = useStore();
+  const enabled = state?.reminder.enabled ?? false;
+  useEffect(() => {
+    if (!enabled || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const t = setTimeout(() => void registerPush(), 3000); // after the page has settled
+    return () => clearTimeout(t);
+  }, [enabled]);
 }

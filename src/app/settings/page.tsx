@@ -1,6 +1,7 @@
 "use client";
 
 import { notify } from "@/lib/notify";
+import { pushActive, registerPush, serverTestPush } from "@/lib/push";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bell, CalendarClock, Database, Download, Monitor, Moon, Smartphone, Sun, Trash2, Upload, User, WifiOff } from "lucide-react";
@@ -174,10 +175,13 @@ export default function SettingsPage() {
   const [confirm, setConfirm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [perm, setPerm] = useState<string>("default");
+  const [pushOn, setPushOn] = useState(false);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
     if (typeof Notification !== "undefined") setPerm(Notification.permission);
+    setPushOn(pushActive());
     setOnline(navigator.onLine);
     const on = () => setOnline(navigator.onLine);
     window.addEventListener("online", on);
@@ -209,11 +213,30 @@ export default function SettingsPage() {
     const ok = await notify("Time to study DSA", `Tap to open Day ${day}: ${plan[day - 1]?.topic.title ?? ""}`, `/lessons/${day}`, "test");
     setMsg(ok ? "Test notification sent. Tap it: it should open today's lesson." : "Notifications aren't allowed yet.");
   };
+  const turnOnPush = async () => {
+    setPushMsg("Turning on phone reminders…");
+    const err = await registerPush();
+    setPushOn(!err);
+    setPushMsg(err ?? "Phone reminders are on: you'll get them at your time even when the app is closed.");
+  };
   const askPermission = async () => {
     if (typeof Notification === "undefined") return setMsg("This browser doesn't support notifications.");
     const p = await Notification.requestPermission();
     setPerm(p);
-    if (p === "granted") update((s) => ({ ...s, reminder: { ...s.reminder, enabled: true } }));
+    if (p === "granted") {
+      update((s) => ({ ...s, reminder: { ...s.reminder, enabled: true } }));
+      await turnOnPush();
+    }
+  };
+  const toggleReminder = async () => {
+    const on = !state.reminder.enabled;
+    update((s) => ({ ...s, reminder: { ...s.reminder, enabled: on } }));
+    if (on) await turnOnPush();
+    else setPushMsg("Reminders are off.");
+  };
+  const testClosed = async () => {
+    setPushMsg("Close or minimise the app now: a test reminder arrives in about 10 seconds…");
+    setPushMsg(await serverTestPush(10));
   };
 
   return (
@@ -271,19 +294,30 @@ export default function SettingsPage() {
 
         <Card i={4} className="px-5 py-2">
           <h2 className="flex items-center gap-2 pt-3 text-[15px] font-bold"><Bell className="h-4 w-4 text-primary" /> Daily reminder</h2>
-          <Row label="Remind me to study" hint="Browsers only allow web apps to show this while the app (or its installed window) is open.">
+          <Row label="Remind me to study" hint="Sent from the server at your time, so it arrives even when the app is closed. Skipped on holidays, leave days and days you've already studied.">
             <div className="flex items-center gap-2">
               <input type="time" value={state.reminder.time} onChange={(e) => update((s) => ({ ...s, reminder: { ...s.reminder, time: e.target.value } }))} className={input} aria-label="Reminder time" />
               {perm !== "granted" ? (
                 <Button onClick={askPermission}>Allow notifications</Button>
               ) : (
                 <>
-                  <Button variant={state.reminder.enabled ? "primary" : "outline"} onClick={() => update((s) => ({ ...s, reminder: { ...s.reminder, enabled: !s.reminder.enabled } }))}>{state.reminder.enabled ? "On" : "Off"}</Button>
+                  <Button variant={state.reminder.enabled ? "primary" : "outline"} onClick={toggleReminder}>{state.reminder.enabled ? "On" : "Off"}</Button>
                   <Button variant="ghost" onClick={sendTest}>Test</Button>
                 </>
               )}
             </div>
           </Row>
+          {perm === "granted" && state.reminder.enabled && (
+            <div className="flex flex-wrap items-center gap-2 pb-3 text-[12.5px]">
+              <span className={pushOn ? "text-green" : "text-amber"}>{pushOn ? "● Phone reminders active on this device" : "● Not registered for phone reminders yet"}</span>
+              {pushOn ? (
+                <Button size="sm" variant="ghost" onClick={testClosed}>Test with app closed</Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={turnOnPush}>Turn on phone reminders</Button>
+              )}
+            </div>
+          )}
+          {pushMsg && <p className="pb-3 text-[12.5px] text-ink-2" role="status">{pushMsg}</p>}
           {perm === "denied" && <p className="pb-3 text-[12.5px] text-rose">Notifications are blocked for this site. Allow them in your browser&apos;s site settings.</p>}
         </Card>
 

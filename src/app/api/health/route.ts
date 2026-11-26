@@ -21,6 +21,8 @@ export async function GET() {
     email: mailConfigured(),
     appUrl: !!process.env.APP_URL,
     trustProxy: process.env.TRUST_PROXY === "1",
+    pushKeys: !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+    cronSecret: !!process.env.CRON_SECRET,
   };
   const problems = [
     !checks.sessionSecret && "SESSION_SECRET is missing or shorter than 32 characters.",
@@ -28,6 +30,8 @@ export async function GET() {
     !checks.passwordHash && "ADMIN_PASSWORD_HASH is missing.",
     !checks.storageOk && storage,
     !checks.email && "SMTP settings are missing (forgot password won't work).",
+    !checks.pushKeys && "VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY are missing (phone reminders won't work).",
+    !checks.cronSecret && "CRON_SECRET is missing (the reminder scheduler can't run).",
   ].filter(Boolean);
   return json({ ok: problems.length === 0, checks, problems });
 }

@@ -1,6 +1,6 @@
 // Offline-first service worker for DSA in Java.
 // Bump VERSION on each deploy so clients pick up the new build.
-const VERSION = "v4";
+const VERSION = "v5";
 const PAGES = `dsa-pages-${VERSION}`;
 const STATIC = `dsa-static-${VERSION}`;
 const MEDIA = `dsa-media-${VERSION}`;
@@ -129,5 +129,25 @@ self.addEventListener("notificationclick", (event) => {
       }
       await self.clients.openWindow(target.href);
     })(),
+  );
+});
+
+// Reminder pushed from the server: shown even when the app is closed.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { body: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(d.title || "Time to study DSA", {
+      body: d.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: d.tag || "daily",
+      renotify: true,
+      data: { url: d.url || "/" },
+    }),
   );
 });

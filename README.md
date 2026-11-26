@@ -69,6 +69,17 @@ The owner signs in with `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH`. Friends join with
 
 Passwords are stored only as scrypt hashes. The sign-up page tells friends that the admin can view their progress.
 
+## Phone reminders (push notifications)
+
+The daily reminder is sent by the server at each learner's chosen time, in their own time zone, so it arrives even when the app is closed. It works on Android and desktop, and on iPhone when the app is installed to the Home Screen (iOS 16.4+). It's skipped on holidays, leave days and days already studied.
+
+1. Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `CRON_SECRET` to Vercel (copy them from `.env.local`). Generate new ones with `npx web-push generate-vapid-keys` if needed.
+2. Create a free job at <https://cron-job.org>:
+   - URL: `https://<your-app>.vercel.app/api/cron/reminders`
+   - Schedule: every 15 minutes
+   - Advanced → Headers: `Authorization: Bearer <CRON_SECRET>`
+3. In the app: **Settings → Daily reminder → Allow notifications**, then **Test with app closed**.
+
 ## Study timer
 
 The **Study Time** card on the dashboard has three buttons. **Start** begins timing and **Stop** pauses it; press Start again to resume. **End day** adds the session to your study log. The timer keeps running across pages and reloads, and a small timer in the top bar shows it.
